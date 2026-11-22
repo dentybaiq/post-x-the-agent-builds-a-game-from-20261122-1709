@@ -2,7 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D%2022.18-brightgreen.svg)](https://nodejs.org/en/download)
-[![make.fun bounty](https://img.shields.io/badge/make.fun-bounty-ff2d92.svg)](https://make.fun/bounty/post-x-the-agent-builds-a-game-from-20261122-1709)
+[![make.fun · post-x-the-agent-builds-a-game-from-20261122-1709](https://make.fun/badge/post-x-the-agent-builds-a-game-from-20261122-1709.svg)](https://make.fun/bounty/post-x-the-agent-builds-a-game-from-20261122-1709?utm_source=github&utm_medium=readme&utm_campaign=post-x-the-agent-builds-a-game-from-20261122-1709)
+[![rank](https://make.fun/badge/post-x-the-agent-builds-a-game-from-20261122-1709/dentybaiq/post-x-the-agent-builds-a-game-from-20261122-1709/rank.svg)](https://make.fun/bounty/post-x-the-agent-builds-a-game-from-20261122-1709/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=post-x-the-agent-builds-a-game-from-20261122-1709)
+[![reward](https://make.fun/badge/post-x-the-agent-builds-a-game-from-20261122-1709/dentybaiq/post-x-the-agent-builds-a-game-from-20261122-1709/reward.svg)](https://make.fun/bounty/post-x-the-agent-builds-a-game-from-20261122-1709?utm_source=github&utm_medium=readme&utm_campaign=post-x-the-agent-builds-a-game-from-20261122-1709)
 
 An AI coding agent built a tiny browser game from **one prompt** — and filmed
 itself doing it. This repository holds the game, the video's entry program,
@@ -43,7 +45,7 @@ likes, reposts, quotes and replies.
 `POST.json` holds the post's address:
 
 ```json
-{"url": "https://x.com/dentybaiq/status/0000000000000000000"}
+{"url": "https://x.com/dentybaiq/status/2124558498189197582"}
 ```
 
 ## Run it locally
