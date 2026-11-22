@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asteroid Dodge — one prompt, one game</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #050510; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #hint {
+    position: fixed; left: 0; right: 0; bottom: 14px; text-align: center;
+    color: #9aa3ff; font: 14px/1.4 "DejaVu Sans Mono", monospace;
+    letter-spacing: 1px; pointer-events: none; user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hint">&#8592; &#8593; &#8595; &#8594; move &nbsp;&middot;&nbsp; dodge the rocks &nbsp;&middot;&nbsp; R to restart</div>
+<script>
+  // Asteroid Dodge — a tiny browser game built from one prompt:
+  // "dodge falling asteroids, arrow keys to move, score points, game over on hit."
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const DEMO = new URLSearchParams(location.search).has('demo');
+
+  let W = 0, H = 0, ship, rocks, stars, score, best, alive, elapsed, spawnTimer;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function newGame() {
+    ship = { x: W / 2, y: H - 110, r: 18, vx: 0, vy: 0 };
+    rocks = [];
+    score = 0;
+    alive = true;
+    elapsed = 0;
+    spawnTimer = 0;
+    stars = Array.from({ length: 90 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      s: Math.random() * 2 + 0.5, v: Math.random() * 30 + 8
+    }));
+    best = Number(localStorage.getItem('asteroid-dodge-best') || 0);
+  }
+
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) e.preventDefault();
+    if ((e.key === 'r' || e.key === 'R') && !alive) newGame();
+  });
+  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+  function spawnRock() {
+    const r = 12 + Math.random() * 26;
+    rocks.push({
+      x: Math.random() * (W - 2 * r) + r,
+      y: -r - 10,
+      r,
+      vy: 140 + Math.random() * 160 + elapsed * 6,
+      vx: (Math.random() - 0.5) * 60,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 2.4,
+      bumps: Array.from({ length: 8 }, () => 0.75 + Math.random() * 0.45)
+    });
+  }
+
+  // Demo autopilot: steers the ship toward the widest gap between the
+  // nearest falling rocks, so the game plays itself for the camera.
+  function autopilot(dt) {
+    const lookAhead = ship.y - 320;
+    const near = rocks.filter(r => r.y > lookAhead - 80 && r.y < ship.y + 40);
+    let target = W / 2;
+    if (near.length) {
+      let bestGap = -1;
+      for (let x = 40; x < W - 40; x += 20) {
+        let clearance = Infinity;
+        for (const r of near) clearance = Math.min(clearance, Math.hypot(x - r.x, ship.y - r.y) - r.r);
+        // Prefer the widest gap; on a near-tie, prefer staying near the centre
+        // so the ship does not hug an edge where the next rock can trap it.
+        const nearerCentre = Math.abs(x - W / 2) < Math.abs(target - W / 2);
+        if (clearance > bestGap + 1 || (Math.abs(clearance - bestGap) <= 1 && nearerCentre)) {
+          bestGap = clearance;
+          target = x;
+        }
+      }
+    }
+    const dx = target - ship.x;
+    ship.vx = Math.max(-520, Math.min(520, dx * 7));
+    ship.vy = 0;
+    ship.x += ship.vx * dt;
+    ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x));
+  }
+
+  function update(dt) {
+    elapsed += dt;
+    for (const s of stars) { s.y += s.v * dt; if (s.y > H) { s.y = -2; s.x = Math.random() * W; } }
+    if (!alive) return;
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawnRock(); spawnTimer = Math.max(0.18, 0.62 - elapsed * 0.008); }
+    if (DEMO) {
+      autopilot(dt);
+    } else {
+      const accel = 2600;
+      if (keys.ArrowLeft || keys.a) ship.vx -= accel * dt;
+      if (keys.ArrowRight || keys.d) ship.vx += accel * dt;
+      if (keys.ArrowUp || keys.w) ship.vy -= accel * dt;
+      if (keys.ArrowDown || keys.s) ship.vy += accel * dt;
+      ship.vx *= Math.pow(0.0015, dt);
+      ship.vy *= Math.pow(0.0015, dt);
+      ship.x += ship.vx * dt;
+      ship.y += ship.vy * dt;
+      ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x));
+      ship.y = Math.max(ship.r, Math.min(H - ship.r, ship.y));
+    }
+    for (const r of rocks) {
+      r.y += r.vy * dt;
+      r.x += r.vx * dt;
+      r.rot += r.vr * dt;
+    }
+    rocks = rocks.filter(r => r.y - r.r < H + 20);
+    score += dt * 10;
+    for (const r of rocks) {
+      const d = Math.hypot(ship.x - r.x, ship.y - r.y);
+      if (d < ship.r + r.r * 0.82) {
+        alive = false;
+        if (score > best) { best = Math.floor(score); localStorage.setItem('asteroid-dodge-best', String(best)); }
+        if (DEMO) setTimeout(newGame, 900);
+        break;
+      }
+    }
+  }
+
+  function drawRock(r) {
+    ctx.save();
+    ctx.translate(r.x, r.y);
+    ctx.rotate(r.rot);
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const rr = r.r * r.bumps[i];
+      if (i === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#8a7f8d';
+    ctx.fill();
+    ctx.strokeStyle = '#c9b8cc';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(-r.r * 0.25, -r.r * 0.2, r.r * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawShip() {
+    ctx.save();
+    ctx.translate(ship.x, ship.y);
+    // engine flame
+    const flick = 10 + Math.random() * 14;
+    ctx.beginPath();
+    ctx.moveTo(-7, 14);
+    ctx.lineTo(0, 14 + flick + 12);
+    ctx.lineTo(7, 14);
+    ctx.closePath();
+    ctx.fillStyle = '#ff9d2e';
+    ctx.fill();
+    // hull
+    ctx.beginPath();
+    ctx.moveTo(0, -20);
+    ctx.lineTo(15, 14);
+    ctx.lineTo(6, 9);
+    ctx.lineTo(-6, 9);
+    ctx.lineTo(-15, 14);
+    ctx.closePath();
+    ctx.fillStyle = '#4dd8ff';
+    ctx.fill();
+    ctx.strokeStyle = '#eafcff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // cockpit
+    ctx.beginPath();
+    ctx.arc(0, -4, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#ffffff';
+    for (const s of stars) {
+      ctx.globalAlpha = 0.35 + (s.s / 2.5) * 0.65;
+      ctx.fillRect(s.x, s.y, s.s, s.s);
+    }
+    ctx.globalAlpha = 1;
+    for (const r of rocks) drawRock(r);
+    if (alive) drawShip();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px "DejaVu Sans Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('SCORE ' + Math.floor(score), 24, 48);
+    ctx.font = '18px "DejaVu Sans Mono", monospace';
+    ctx.fillStyle = '#9aa3ff';
+    ctx.fillText('BEST ' + best, 24, 78);
+    if (!alive) {
+      ctx.fillStyle = 'rgba(5,5,16,0.72)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#ff5d7a';
+      ctx.font = 'bold 64px "DejaVu Sans Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', W / 2, H / 2 - 10);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '26px "DejaVu Sans Mono", monospace';
+      ctx.fillText('final score ' + Math.floor(score) + '  ·  press R to fly again', W / 2, H / 2 + 44);
+    }
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  newGame();
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
